@@ -88,7 +88,7 @@ class Gamepad {
         var handlers = this._buttonDownHandlers[id]
         if (!handlers) {
             handlers = []
-            this._buttonDownHandlers[i] = handlers
+            this._buttonDownHandlers[id] = handlers
         }
         handlers.push(func)
     }
@@ -97,7 +97,7 @@ class Gamepad {
         var handlers = this._buttonUpHandlers[id]
         if (!handlers) {
             handlers = []
-            this._buttonUpHandlers[i] = handlers
+            this._buttonUpHandlers[id] = handlers
         }
         handlers.push(func)
     }
@@ -124,16 +124,34 @@ class Gamepad {
 var gamepad = null
 
 poweredUP.on("discover", async (hub) => { // Wait to discover a Hub
-    console.log(`Discovered ${hub.name}!`);
-    await hub.connect(); // Connect to the Hub
-    const motorA = await hub.waitForDeviceAtPort("A"); // Make sure a motor is plugged into port A
-    const motorB = await hub.waitForDeviceAtPort("B"); // Make sure a motor is plugged into port B
-    console.log(`${hub.name} is ready! Battery ${hub.batteryLevel}%`);
+    console.log(`Discovered ${hub.name}!`)
+    await hub.connect() // Connect to the Hub
+    const motorA = await hub.waitForDeviceAtPort("A") // Make sure a motor is plugged into port A
+    const motorB = await hub.waitForDeviceAtPort("B") // Make sure a motor is plugged into port B
+    const motorD = await hub.waitForDeviceAtPort("D")
+    console.log(`${hub.name} is ready! Battery ${hub.batteryLevel}%`)
 
-    function setup() {
+    async function setup() {
+        var motorDegree = 0
+        motorD.on('rotate', (e) => {
+            motorDegree = e.degrees
+        })
+
+        motorD.rotateByDegrees(180, -20)
+        await hub.sleep(3000)
+        motorD.rotateByDegrees(20, 20)
+        await hub.sleep(200)
+
+        gamepad.onButtonDown(0, (b) => {
+            motorD.rotateByDegrees(20, 10)
+        })
+        gamepad.onButtonDown(3, (b) => {
+            motorD.rotateByDegrees(20, -10)
+        })
+
         gamepad.onStickMove(0, (s) => {
             var r = 0.7071068
-            var x2 = Math.sign(s.x) * Math.pow(s.x, 1.5) * r
+            var x2 = Math.sign(s.x) * Math.pow(Math.abs(s.x), 1.5) * r
             if (Math.abs(x2) < 0.2) x2 = 0
             var y2 = s.y * r * 2
             var pA = x2 * r - y2 * r
@@ -147,6 +165,15 @@ poweredUP.on("discover", async (hub) => { // Wait to discover a Hub
                 motorB.brake()   
             } else {
                 motorB.setPower(Math.sign(pB) * (Math.abs(pB) * 70 + 30))
+            }
+        })
+
+        var forkDegreeBase = motorDegree
+        gamepad.onPressTrigger(1, (t) => {
+            var forkDegree = motorDegree - forkDegreeBase
+            var rotate = Math.round(t.value * 10) * 18 - forkDegree
+            if (Math.abs(rotate) > 30) {
+                motorD.rotateByDegrees(Math.abs(rotate), Math.sign(rotate) * 30)
             }
         })
     }
